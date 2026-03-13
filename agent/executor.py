@@ -1,14 +1,17 @@
 import json
+import logging
 
 from agent.context_builder import ContextBuilder
-from llm.model_interface import MockModel
+from llm.model_interface import TextModel
 from runtime.episode import EpisodeRuntime
 from tools.tool_runner import ToolRunner
 from utils.schemas import ExecutionResult, Step, Task
 
+logger = logging.getLogger(__name__)
+
 
 class Executor:
-    def __init__(self, model: MockModel, context_builder: ContextBuilder, tool_runner: ToolRunner):
+    def __init__(self, model: TextModel, context_builder: ContextBuilder, tool_runner: ToolRunner):
         self.model = model
         self.context_builder = context_builder
         self.tool_runner = tool_runner
@@ -16,6 +19,7 @@ class Executor:
     def execute(self, task: Task, runtime: EpisodeRuntime, step: Step) -> tuple[dict, ExecutionResult]:
         prompt = self.context_builder.step_prompt(task, runtime, step, runtime.confirmed_facts)
         action = self._parse_action(self.model.generate(prompt))
+        logger.debug("Executor selected action for %s: %s", step.id, action)
         return action, self.tool_runner.run(action)
 
     def _parse_action(self, text: str) -> dict:

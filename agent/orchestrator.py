@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -6,13 +7,15 @@ from agent.executor import Executor
 from agent.planner import Planner
 from agent.state_manager import StateManager
 from agent.verifier import Verifier
-from llm.model_interface import MockModel
+from llm.model_interface import TextModel
 from memory.episode_store import EpisodeStore
 from memory.retrieval import RetrievalEngine
 from runtime.episode import EpisodeRuntime
 from runtime.event_journal import EventJournal
 from tools.tool_runner import ToolRunner
 from utils.schemas import EpisodeCard, Event, Step, Task
+
+logger = logging.getLogger(__name__)
 
 
 class Orchestrator:
@@ -26,7 +29,7 @@ class Orchestrator:
         journal: EventJournal,
         store: EpisodeStore,
         retrieval: RetrievalEngine,
-        model: MockModel,
+        model: TextModel,
         tool_runner: ToolRunner,
         workspace: Path,
     ):
@@ -43,11 +46,19 @@ class Orchestrator:
         self.max_attempts = 6
 
     def run(self, task: Task) -> str:
+        logger.info("Starting task id=%s description=%s", task.id, task.description)
         runtime = self._register(task)
         self._initialize(task, runtime)
         self._plan(task, runtime)
         self._execute_loop(task, runtime)
-        return self._close(task, runtime)
+        summary = self._close(task, runtime)
+        logger.info(
+            "Task finished id=%s episode=%s status=%s",
+            task.id,
+            runtime.episode.id,
+            runtime.episode.status,
+        )
+        return summary
 
     def _register(self, task: Task) -> EpisodeRuntime:
         episode_id = f"episode-{task.id}-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}"
@@ -69,12 +80,20 @@ class Orchestrator:
         prompt = self.context_builder.planning_prompt(task, runtime, runtime.confirmed_facts)
         plan_text = self.model.generate(prompt)
         steps = self.planner.parse(plan_text)
+        if not steps:
+            runtime.episode.status = "blocked"
+            runtime.episode.phase = "planning_failed"
+            self.state_manager.update_summary(runtime, "Planner returned no executable steps")
+            self._log(runtime, "", "plan_failed", {"raw_plan": plan_text})
+            return
         self.state_manager.set_steps(runtime, steps)
         self.state_manager.update_summary(runtime, f"Plan created with {len(steps)} steps")
         self.state_manager.set_phase(runtime, "execute")
         self._log(runtime, "", "plan_created", {"steps": [step.description for step in steps]})
 
     def _execute_loop(self, task: Task, runtime: EpisodeRuntime) -> None:
+        if runtime.episode.status != "active":
+            return
         while runtime.episode.attempt_counter < self.max_attempts:
             step = self._select_step(runtime)
             if not step:
@@ -100,7 +119,7 @@ class Orchestrator:
                 self.state_manager.confirm_fact(runtime, note)
                 self.state_manager.update_summary(runtime, f"{step.description}: success")
                 self._log(runtime, step.id, "step_verified", {"note": note})
-                if "tests pass" in task.completion_criteria and "OK" in result.output:
+                if len(runtime.completed_steps) == len(runtime.steps):
                     runtime.episode.status = "completed"
                     break
             else:
@@ -137,7 +156,7 @@ class Orchestrator:
         card = EpisodeCard(
             goal=task.description,
             symptoms=[obs for obs in runtime.observations if "failed" in obs][:2],
-            tested_hypotheses=["repository state inspected", "tests reveal status"],
+            tested_hypotheses=["plan executed step by step", "verifier evaluated each result"],
             actions=[step.description for step in runtime.steps],
             outcome=runtime.episode.status,
             artifacts=sorted({*runtime.confirmed_facts, *runtime.completed_steps}),
@@ -146,16 +165,17 @@ class Orchestrator:
         self.store.archive_episode(runtime)
         self._log(runtime, "", "episode_closed", {"status": runtime.episode.status})
         next_actions = (
-            "None. Completion criteria satisfied."
+            "None. The current plan finished successfully."
             if runtime.episode.status == "completed"
             else "Inspect unresolved failure and plan another episode."
         )
+        confirmed = "\n- ".join(runtime.confirmed_facts) if runtime.confirmed_facts else "none"
         return (
             "Episode Summary\n"
             "---------------\n\n"
             f"Goal:\n{task.description}\n\n"
             f"What was done:\n{runtime.episode.working_summary}\n\n"
-            f"Confirmed facts:\n- " + "\n- ".join(runtime.confirmed_facts) + "\n\n"
+            f"Confirmed facts:\n- {confirmed}\n\n"
             f"Next actions:\n{next_actions}\n"
         )
 

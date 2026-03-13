@@ -2,9 +2,12 @@ import shlex
 import subprocess
 import sys
 import time
+import logging
 from pathlib import Path
 
 from utils.schemas import ExecutionResult
+
+logger = logging.getLogger(__name__)
 
 
 class ToolRunner:
@@ -14,6 +17,7 @@ class ToolRunner:
     def run(self, action: dict) -> ExecutionResult:
         tool = action["tool"]
         start = time.perf_counter()
+        logger.debug("ToolRunner received action: %s", action)
         if tool == "shell":
             command = action["command"]
             parts = shlex.split(command)
@@ -25,6 +29,7 @@ class ToolRunner:
                 text=True,
                 capture_output=True,
             )
+            logger.debug("Shell command finished code=%s command=%s", proc.returncode, command)
             return ExecutionResult(
                 command=command,
                 return_code=proc.returncode,
@@ -35,6 +40,7 @@ class ToolRunner:
             )
         if tool == "read_file":
             path = self.workspace / action["path"]
+            logger.debug("Reading file %s", path)
             return ExecutionResult(
                 command=f"read {action['path']}",
                 return_code=0,
@@ -45,6 +51,7 @@ class ToolRunner:
             )
         if tool == "write_file":
             path = self.workspace / action["path"]
+            logger.debug("Writing file %s", path)
             path.write_text(action["content"], encoding="utf-8")
             return ExecutionResult(
                 command=f"write {action['path']}",
@@ -56,6 +63,7 @@ class ToolRunner:
             )
         if tool == "list_dir":
             files = sorted(p.name for p in (self.workspace / action.get("path", ".")).iterdir())
+            logger.debug("Listing directory %s", self.workspace / action.get("path", "."))
             return ExecutionResult(
                 command=f"list {action.get('path', '.')}",
                 return_code=0,

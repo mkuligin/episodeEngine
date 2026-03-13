@@ -9,18 +9,16 @@ class Verifier:
         self.workspace = workspace
 
     def verify(self, step: Step, result: ExecutionResult, runtime: EpisodeRuntime) -> tuple[bool, str]:
-        if "Run tests" in step.description or "Re-run tests" in step.description:
-            output = result.output or result.errors
-            if "OK" in output:
-                return True, "tests pass"
-            if "FAIL" in output:
-                return True, "tests executed and exposed failure"
-            return False, output or "tests did not run"
         if result.return_code != 0:
-            return False, result.errors or "non-zero return code"
-        if "Inspect repository" in step.description:
-            return "calculator.py" in result.output, "repository inspected"
-        if "Fix failing module" in step.description:
-            text = (self.workspace / "calculator.py").read_text(encoding="utf-8")
-            return "return a + b" in text, "calculator.py updated"
-        return True, "step succeeded"
+            return False, result.errors or result.output or "non-zero return code"
+        if step.action_type == "write_file":
+            if result.changed_files:
+                return True, f"updated {', '.join(result.changed_files)}"
+            return False, "write_file reported no changed files"
+        if step.action_type == "read_file":
+            return bool(result.output.strip()), "file inspected"
+        if step.action_type == "list_dir":
+            return True, "workspace inspected"
+        if "test" in step.description.lower():
+            return True, "tests passed"
+        return True, "command succeeded"
