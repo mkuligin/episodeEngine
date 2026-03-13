@@ -1,0 +1,21 @@
+{
+  "episode": {
+    "id": "episode-task-1-20260313043004",
+    "task_id": "task-1",
+    "status": "completed",
+    "phase": "closure",
+    "working_summary": "Plan created with 0 steps",
+    "attempt_counter": 0,
+    "current_step": ""
+  },
+  "steps": [],
+  "completed_steps": [],
+  "observations": [
+    "Plan created with 0 steps"
+  ],
+  "confirmed_facts": [
+    "project=demo",
+    "workspace=/home/mk/code/agent/demo_project",
+    "python_files=2"
+  ]
+}

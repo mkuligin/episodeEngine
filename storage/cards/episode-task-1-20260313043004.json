@@ -1,0 +1,15 @@
+{
+  "goal": "Fix failing unit tests in project",
+  "symptoms": [],
+  "tested_hypotheses": [
+    "repository state inspected",
+    "tests reveal status"
+  ],
+  "actions": [],
+  "outcome": "completed",
+  "artifacts": [
+    "project=demo",
+    "python_files=2",
+    "workspace=/home/mk/code/agent/demo_project"
+  ]
+}

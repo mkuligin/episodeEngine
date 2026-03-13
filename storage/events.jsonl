@@ -1,0 +1,4 @@
+{"timestamp": "2026-03-13T04:30:04.639714+00:00", "episode_id": "episode-task-1-20260313043004", "step_id": "", "type": "episode_registered", "payload": {"task": "Fix failing unit tests in project"}}
+{"timestamp": "2026-03-13T04:30:04.640208+00:00", "episode_id": "episode-task-1-20260313043004", "step_id": "", "type": "retrieval_complete", "payload": {"similar_episodes": [], "environment_facts": ["workspace=/home/mk/code/agent/demo_project", "python_files=2"]}}
+{"timestamp": "2026-03-13T04:36:48.719078+00:00", "episode_id": "episode-task-1-20260313043004", "step_id": "", "type": "plan_created", "payload": {"steps": []}}
+{"timestamp": "2026-03-13T04:36:48.719384+00:00", "episode_id": "episode-task-1-20260313043004", "step_id": "", "type": "episode_closed", "payload": {"status": "completed"}}
